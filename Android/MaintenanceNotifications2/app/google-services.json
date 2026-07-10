@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "528366179043",
+    "project_id": "notificaciones-wearos",
+    "storage_bucket": "notificaciones-wearos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:528366179043:android:6612afc765b33723a76bd6",
+        "android_client_info": {
+          "package_name": "com.example.maintenancenotifications"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCryefVlLk3m7ghU4mmDHfJK_poryz2o8k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:528366179043:android:514e4bc05baeba9da76bd6",
+        "android_client_info": {
+          "package_name": "com.uth.wearnotifications"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCryefVlLk3m7ghU4mmDHfJK_poryz2o8k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
