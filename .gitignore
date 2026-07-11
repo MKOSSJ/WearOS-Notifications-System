@@ -1,0 +1,4 @@
+**/bin/
+**/obj/
+Backend/Firebase/*.json
+**/*firebase-adminsdk*.json
