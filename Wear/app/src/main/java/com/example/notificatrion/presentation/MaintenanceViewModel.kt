@@ -6,49 +6,94 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import com.example.notificatrion.data.MaintenanceRequest
 import com.google.android.gms.wearable.DataClient
-import com.google.android.gms.wearable.DataEvent
-import com.google.android.gms.wearable.DataMapItem
 import com.google.android.gms.wearable.Wearable
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.net.HttpURLConnection
+import java.net.URL
 
 class MaintenanceViewModel(application: Application) : AndroidViewModel(application), DataClient.OnDataChangedListener {
 
     private val _requests = mutableStateOf<List<MaintenanceRequest>>(listOf(
         MaintenanceRequest(
-            id = "example_1",
-            title = "Impresora Fallando",
-            description = "Revisar impresora del área de administración. No jala el tóner.",
+            id = "1",
+            title = "¡URGENTE! Servidor SITE",
+            description = "Sobrecalentamiento en rack 4. Temperatura 45°C.",
+            status = "Pending",
+            isRead = false
+        ),
+        MaintenanceRequest(
+            id = "2",
+            title = "Impresora Admin",
+            description = "Atasco de papel y falta de tóner cian.",
+            status = "In Progress",
+            isRead = true
+        ),
+        MaintenanceRequest(
+            id = "3",
+            title = "Luz Pasillo B",
+            description = "Cambiar 3 lámparas fundidas.",
+            status = "Resolved",
+            isRead = true
+        ),
+        MaintenanceRequest(
+            id = "4",
+            title = "Aire Acondicionado",
+            description = "Mantenimiento preventivo unidad 02.",
             status = "Pending",
             isRead = false
         )
     ))
     val requests: State<List<MaintenanceRequest>> = _requests
 
-    private val messageClient = Wearable.getMessageClient(application)
-    private val nodeClient = Wearable.getNodeClient(application)
-
     init {
         Wearable.getDataClient(application).addListener(this)
+        fetchAndRegisterFcmToken()
+    }
+
+    private fun fetchAndRegisterFcmToken() {
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    val token = task.result
+                    android.util.Log.d("FCM", "Token: $token")
+                    registerDeviceToken(token)
+                } else {
+                    android.util.Log.w("FCM", "Fetching FCM registration token failed", task.exception)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FCM", "Firebase not initialized. Make sure google-services.json is present.")
+        }
+    }
+
+    private fun registerDeviceToken(token: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Usando 10.0.2.2 para acceder al localhost de la máquina host desde el emulador
+                val url = URL("http://10.0.2.2:5268/api/device-token")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.doOutput = true
+                
+                val jsonInputString = "{\"token\": \"$token\"}"
+                conn.outputStream.use { os ->
+                    val input = jsonInputString.toByteArray(Charsets.UTF_8)
+                    os.write(input, 0, input.size)
+                }
+                
+                android.util.Log.d("FCM", "Token registration response: ${conn.responseCode}")
+            } catch (e: Exception) {
+                android.util.Log.e("FCM", "Error registering token", e)
+            }
+        }
     }
 
     fun markAsResolved(requestId: String) {
-        // Enviar mensaje al teléfono para que allá se haga el POST real a la DB/Firebase
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val nodes = com.google.android.gms.tasks.Tasks.await(nodeClient.connectedNodes)
-                for (node in nodes) {
-                    messageClient.sendMessage(node.id, "/resolve_request", requestId.toByteArray())
-                }
-                // Simular el POST localmente por si se requiere directo (opcional)
-                sendPostRequest(requestId, "Resolved")
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-        // Actualizar localmente la UI
-        updateRequestStatus(requestId, "Resolved")
+        updateStatus(requestId, "Resolved")
     }
 
     fun markAsRead(requestId: String) {
@@ -58,66 +103,22 @@ class MaintenanceViewModel(application: Application) : AndroidViewModel(applicat
             currentList[index] = currentList[index].copy(isRead = true)
             _requests.value = currentList
         }
-        // Avisar al teléfono que ya se leyó
-        CoroutineScope(Dispatchers.IO).launch {
-            val nodes = com.google.android.gms.tasks.Tasks.await(nodeClient.connectedNodes)
-            for (node in nodes) {
-                messageClient.sendMessage(node.id, "/mark_as_read", requestId.toByteArray())
-            }
-        }
     }
 
     fun ignoreRequest(requestId: String) {
         _requests.value = _requests.value.filter { it.id != requestId }
-        // Avisar al teléfono
-        CoroutineScope(Dispatchers.IO).launch {
-            val nodes = com.google.android.gms.tasks.Tasks.await(nodeClient.connectedNodes)
-            for (node in nodes) {
-                messageClient.sendMessage(node.id, "/ignore_request", requestId.toByteArray())
-            }
-        }
     }
 
-    private fun updateRequestStatus(requestId: String, status: String) {
+    private fun updateStatus(requestId: String, status: String) {
         val currentList = _requests.value.toMutableList()
         val index = currentList.indexOfFirst { it.id == requestId }
         if (index != -1) {
-            currentList[index] = currentList[index].copy(status = status)
+            currentList[index] = currentList[index].copy(status = status, isRead = true)
             _requests.value = currentList
         }
     }
 
-    private suspend fun sendPostRequest(requestId: String, status: String) {
-        // Aquí iría un Retrofit o OkHttp real si el reloj tuviera internet directo
-        // Por ahora simulamos el log del POST
-        android.util.Log.d("API_POST", "Enviando POST: /api/requests/$requestId con status $status")
-    }
-
     override fun onDataChanged(dataEvents: com.google.android.gms.wearable.DataEventBuffer) {
-        val newRequests = _requests.value.toMutableList()
-        for (event in dataEvents) {
-            if (event.type == DataEvent.TYPE_CHANGED) {
-                val path = event.dataItem.uri.path
-                if (path == "/maintenance_request") {
-                    val dataMap = DataMapItem.fromDataItem(event.dataItem).dataMap
-                    val id = dataMap.getString("id") ?: ""
-                    val title = dataMap.getString("title") ?: ""
-                    val description = dataMap.getString("description") ?: ""
-                    val status = dataMap.getString("status") ?: "Pending"
-                    val isRead = dataMap.getBoolean("isRead", false)
-                    
-                    val existingIndex = newRequests.indexOfFirst { it.id == id }
-                    val request = MaintenanceRequest(id, title, description, status = status, isRead = isRead)
-                    
-                    if (existingIndex != -1) {
-                        newRequests[existingIndex] = request
-                    } else {
-                        newRequests.add(request)
-                    }
-                }
-            }
-        }
-        _requests.value = newRequests
     }
 
     override fun onCleared() {

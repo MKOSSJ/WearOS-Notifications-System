@@ -8,16 +8,17 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope
@@ -28,7 +29,6 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import androidx.wear.compose.ui.tooling.preview.WearPreviewDevices
 import androidx.wear.compose.ui.tooling.preview.WearPreviewFontScales
-import com.example.notificatrion.R
 import com.example.notificatrion.data.MaintenanceRequest
 import com.example.notificatrion.presentation.theme.NotificatrionTheme
 
@@ -55,7 +55,13 @@ fun WearApp(viewModel: MaintenanceViewModel = viewModel()) {
                 timeText = { TimeText() }
             ) { contentPadding ->
                 TransformingLazyColumn(
-                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF0F0F0F), Color.Black)
+                            )
+                        ),
                     contentPadding = contentPadding,
                     state = listState
                 ) {
@@ -63,52 +69,35 @@ fun WearApp(viewModel: MaintenanceViewModel = viewModel()) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 8.dp)
+                                .padding(top = 10.dp, bottom = 12.dp)
                                 .transformedHeight(this, transformationSpec),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.NotificationsActive,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Text(
-                                text = stringResource(R.string.title_requests),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    }
-                    
-                    item {
-                        AnimatedVisibility(
-                            visible = requests.isEmpty(),
-                            enter = fadeIn() + expandVertically(),
-                            exit = fadeOut() + shrinkVertically()
-                        ) {
-                            Column(
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                    .size(32.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Build,
+                                    imageVector = Icons.Default.Engineering,
                                     contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.outline,
-                                    modifier = Modifier.size(40.dp)
-                                )
-                                Text(
-                                    text = stringResource(R.string.no_requests),
-                                    modifier = Modifier.padding(16.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    textAlign = TextAlign.Center,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
+                            Text(
+                                text = "Panel Técnico",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                            Text(
+                                text = "${requests.size} Pendientes",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
 
@@ -120,6 +109,10 @@ fun WearApp(viewModel: MaintenanceViewModel = viewModel()) {
                             onRead = { viewModel.markAsRead(request.id) },
                             onIgnore = { viewModel.ignoreRequest(request.id) }
                         )
+                    }
+                    
+                    item {
+                        Spacer(modifier = Modifier.height(20.dp))
                     }
                 }
             }
@@ -136,23 +129,33 @@ fun TransformingLazyColumnItemScope.MaintenanceRequestCard(
     onIgnore: () -> Unit
 ) {
     val isResolved = request.status == "Resolved"
+    val isPending = request.status == "Pending"
+    val isInProgress = request.status == "In Progress"
     val isRead = request.isRead
     
-    // Animación de color de fondo
     val animatedBgColor by animateColorAsState(
-        targetValue = if (isResolved) Color(0xFF1B5E20) 
-                     else if (isRead) MaterialTheme.colorScheme.surfaceContainerLow 
-                     else MaterialTheme.colorScheme.surfaceContainer,
-        animationSpec = tween(durationMillis = 500)
+        targetValue = when {
+            isResolved -> Color(0xFF1B5E20)
+            isInProgress -> Color(0xFF0D47A1)
+            isRead -> Color(0xFF252525)
+            else -> MaterialTheme.colorScheme.surfaceContainer
+        },
+        animationSpec = tween(600)
     )
 
-    val cardColor = CardDefaults.cardColors(
-        containerColor = animatedBgColor,
-        contentColor = if (isResolved) Color.White else MaterialTheme.colorScheme.onSurface
-    )
-
-    val statusIcon = if (isResolved) Icons.Default.CheckCircle else Icons.Default.Warning
-    val statusTint = if (isResolved) Color.Green else if (isRead) Color.Gray else Color.Yellow
+    val statusIcon = when {
+        isResolved -> Icons.Default.CheckCircle
+        isInProgress -> Icons.Default.Sync
+        isPending && request.title.contains("URGENTE") -> Icons.Default.Report
+        else -> Icons.Default.Warning
+    }
+    
+    val statusTint = when {
+        isResolved -> Color.Green
+        isInProgress -> Color(0xFF64B5F6)
+        isPending && request.title.contains("URGENTE") -> Color.Red
+        else -> Color.Yellow
+    }
 
     TitleCard(
         onClick = onRead,
@@ -162,31 +165,31 @@ fun TransformingLazyColumnItemScope.MaintenanceRequestCard(
                     imageVector = statusIcon,
                     contentDescription = null,
                     tint = statusTint,
-                    modifier = Modifier.size(16.dp).padding(end = 4.dp)
+                    modifier = Modifier.size(16.dp).padding(end = 6.dp)
                 )
                 Text(
                     text = request.title,
                     maxLines = 1,
-                    fontWeight = if (isRead) FontWeight.Normal else FontWeight.Bold
+                    fontWeight = if (isRead) FontWeight.Medium else FontWeight.ExtraBold,
+                    fontSize = 14.sp
                 )
             }
         },
         subtitle = { 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = if (isResolved) "Atendido" else if (isRead) "Leído" else "Pendiente",
-                    color = if (isResolved) Color.Green else if (isRead) Color.Gray else Color.Yellow
-                )
-                if (isRead) {
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Default.DoneAll, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Cyan)
-                }
-            }
+            Text(
+                text = when {
+                    isResolved -> "Atendido ✅"
+                    isInProgress -> "En Proceso..."
+                    else -> "Pendiente ⚠️"
+                },
+                color = statusTint,
+                style = MaterialTheme.typography.labelSmall
+            )
         },
-        colors = cardColor,
+        colors = CardDefaults.cardColors(containerColor = animatedBgColor),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 4.dp, horizontal = 4.dp)
             .animateContentSize(animationSpec = spring())
             .transformedHeight(this, transformationSpec),
         transformation = SurfaceTransformation(transformationSpec),
@@ -195,35 +198,30 @@ fun TransformingLazyColumnItemScope.MaintenanceRequestCard(
             Text(
                 text = request.description,
                 style = MaterialTheme.typography.bodySmall,
+                color = if (isRead) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
                 modifier = Modifier.padding(bottom = 8.dp),
                 maxLines = 2
             )
             
-            AnimatedVisibility(
-                visible = true, // Siempre visible pero para que el layout anime cambios internos
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
+            if (!isResolved) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    if (!isResolved) {
-                        Button(
-                            onClick = onResolve,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(18.dp))
-                        }
+                    Button(
+                        onClick = onResolve,
+                        modifier = Modifier.weight(1f).height(36.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     }
                     
                     Button(
                         onClick = onIgnore,
-                        modifier = Modifier.weight(0.5f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                        modifier = Modifier.size(36.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB00020))
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Ignorar", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -236,7 +234,7 @@ fun TransformingLazyColumnItemScope.MaintenanceRequestCard(
 @Composable
 fun DefaultPreview() {
     NotificatrionTheme {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
             Text("Vista previa")
         }
     }
